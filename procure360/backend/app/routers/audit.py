@@ -1,48 +1,40 @@
-from fastapi import APIRouter,Response
+from fastapi import APIRouter, Response
 from app.storage.db import get_db
-import uuid,json
-
-from app.services.document_parser import parse_pdf
-from app.services.contract_scanner import scan_contract
+import json
 
 router = APIRouter()
 
+# AuditTrail.jsx reads: log.event_type, log.entity_id, log.details
+# DB columns are:        action_type,   input_ref,    user_note
+# We alias them here so the schema stays unchanged.
+_SELECT_AUDIT = """
+    SELECT
+        id,
+        action_type  AS event_type,
+        input_ref    AS entity_id,
+        user_note    AS details,
+        created_at
+    FROM audit_log
+    ORDER BY created_at DESC
+"""
 
 
 @router.get("/")
 async def list_audit():
-
     with get_db() as conn:
-        sql_query="""
-        SELECT * FROM audit_log
-        ORDER BY created_at DESC;
-        """
-        audit_list=[]
-        rows=conn.execute(sql_query).fetchall()
-        for row in rows:
-            audit_list.append(dict(row))
-        # rows.sort(key =lambda x:x['created_at'])
+        rows = conn.execute(_SELECT_AUDIT).fetchall()
+        audit_list = [dict(row) for row in rows]
     return {"events": audit_list}
 
 
 @router.get("/export")
 async def export_audit():
     with get_db() as conn:
-        sql_query="""
-        SELECT * FROM audit_log
-        ORDER BY created_at DESC;
-        """
-        jsonl_string=""
-        rows=conn.execute(sql_query).fetchall()
-        for row in rows:
-            jsonl_string+=json.dumps(dict(row))+'\n'
+        rows = conn.execute(_SELECT_AUDIT).fetchall()
+        jsonl_string = "".join(json.dumps(dict(row)) + "\n" for row in rows)
 
-
-        return Response(
-            content=jsonl_string,
-            media_type="application/jsonl",
-            headers={"content-disposition": "attachment; filename=audit.jsonl"}
-
-        )
-
-        
+    return Response(
+        content=jsonl_string,
+        media_type="application/jsonl",
+        headers={"content-disposition": "attachment; filename=audit.jsonl"},
+    )

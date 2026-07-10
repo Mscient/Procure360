@@ -6,12 +6,14 @@ Usage:
 
     # In startup lifespan:
     init_db()
+    migrate_db()
 
     # In a route/service:
-    db = get_db()
-    db.execute(...)
+    with get_db() as db:
+        db.execute(...)
 """
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from app.config import SQLITE_PATH, STORAGE_DIR
 
@@ -47,3 +49,47 @@ def init_db() -> None:
     db.executescript(schema_sql)
     db.commit()
     print(f"[DB] Initialised -> {SQLITE_PATH}")
+
+
+def migrate_db() -> None:
+    """
+    Safe, idempotent migrations for existing databases.
+
+    ALTER TABLE in SQLite has no IF NOT EXISTS / IF EXISTS guard, so we catch
+    the OperationalError that fires when a column already exists or a column
+    to-be-renamed is absent.  Running this multiple times is harmless.
+    """
+    db = get_db()
+    migrations = [
+        # Rename the misnamed column in flags (source_location → reason).
+        # SQLite < 3.25 doesn't support RENAME COLUMN, so we add the new
+        # column and leave the old one in place for backward compat.
+        ("ALTER TABLE flags ADD COLUMN reason TEXT",
+         "flags.reason already exists — skipping"),
+
+        # Add raw_text storage to contracts so chat can reference it.
+        ("ALTER TABLE contracts ADD COLUMN raw_text TEXT",
+         "contracts.raw_text already exists — skipping"),
+
+        # Contract lifecycle: status and expiry date.
+        ("ALTER TABLE contracts ADD COLUMN status TEXT DEFAULT 'active'",
+         "contracts.status already exists — skipping"),
+
+        ("ALTER TABLE contracts ADD COLUMN expires_at TEXT",
+         "contracts.expires_at already exists — skipping"),
+
+        # Raw data tracing
+        ("ALTER TABLE bids ADD COLUMN raw_file_path TEXT",
+         "bids.raw_file_path already exists — skipping"),
+        
+        ("ALTER TABLE contracts ADD COLUMN raw_file_path TEXT",
+         "contracts.raw_file_path already exists — skipping"),
+    ]
+    for sql, skip_msg in migrations:
+        try:
+            db.execute(sql)
+            db.commit()
+        except Exception:
+            print(f"[DB] migrate_db: {skip_msg}")
+
+    print("[DB] Migrations complete.")

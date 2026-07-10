@@ -1,0 +1,20 @@
+[
+  {
+    "clause_text": "The Vendor's aggregate liability under this Agreement shall not exceed the total contract value, except in cases of gross negligence or willful misconduct.",
+    "flag_type": "LIABILITY_RISK",
+    "severity": "HIGH",
+    "reason": "The vendor's liability is capped at the total contract value. For a material supply agreement, this cap may be insufficient to cover significant consequential damages (e.g., project delays, rework costs, or structural issues) that could result from material defects or breaches not amounting to gross negligence or willful misconduct."
+  },
+  {
+    "clause_text": "The Vendor warrants that all materials supplied shall conform to the agreed specifications for a period of 24 months from the date of delivery.",
+    "flag_type": "WARRANTY_RISK",
+    "severity": "MEDIUM",
+    "reason": "The warranty is limited to conformity with specifications and does not explicitly include a warranty of fitness for a particular purpose, which could be critical if the buyer relies on the vendor's expertise for specific project needs. Additionally, specific remedies for a breach of warranty (e.g., repair, replacement, refund) are not defined, potentially leaving the buyer to pursue more general and potentially slower contractual remedies."
+  },
+  {
+    "clause_text": "payment within 30 days",
+    "flag_type": "PAYMENT_RISK",
+    "severity": "MEDIUM",
+    "reason": "Short payment window detected"
+  }
+]

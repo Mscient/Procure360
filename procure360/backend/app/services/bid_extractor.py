@@ -1,54 +1,40 @@
-import json 
-import google.generativeai as genai
-from app import config
+import json
+from app.services.llm_client import generate_content_with_retry
 
 
-genai.configure(api_key=config.GEMINI_API_KEY)
-
-model=genai.GenerativeModel(config.GEMINI_MODEL)
-
-def extract_bid_data(raw_text:str)->dict:
-    """ promt Gemini to extract  specific fields from raw bit text.
-    Returns a dictionary 
+def extract_bid_data(raw_text: str) -> dict:
+    """Prompt Gemini to extract specific fields from raw bid text.
+    Returns a dictionary, or {} on any API / parse failure.
     """
 
-    prompt=f"""
-
-    you are an expert procurement assistant .Extract the following information 
+    prompt = f"""
+    You are an expert procurement assistant. Extract the following information
     from the bid document text below.
 
-    Return only  a valid JSON objec with the following keys.
-    IF a value is not found ,set it to null.
+    Return only a valid JSON object with the following keys.
+    If a value is not found, set it to null.
 
-    keys:
-    -vendor_name(string)
-    -price(float,just number)
-    -lead_time(string,4 weeks)
-    -payment_terms(string)
-    -price_hold_days(integer ,how  many days the price is valid for)
-    -warranty_terms(string)
+    Keys:
+    - vendor_name (string)
+    - price (float, just the number)
+    - lead_time (string, e.g. "4 weeks")
+    - payment_terms (string)
+    - price_hold_days (integer, how many days the price is valid for)
+    - warranty_terms (string)
 
-
-    Bid TEXT
-    {raw_text} 
-
+    Bid Text:
+    {raw_text}
     """
 
-    response=model.generate_content(
-        prompt,
-        generation_config=genai.GenerationConfig(
-           response_mime_type="application/json"
-        )
-    )
-
     try:
-        data=json.loads(response.text)
-        return data
-    except json.JSONDecodeError:
-        print("[Error] Gemini did not return valid JSON")
+        # Calls our new wrapper which handles retries and backoff
+        response_text = generate_content_with_retry(prompt, json_mode=True)
+        try:
+            # Inner try: protects against malformed JSON in the response
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            print("[BidExtractor] Gemini returned non-JSON — skipping this bid")
+            return {}
+    except Exception as exc:
+        print(f"[BidExtractor] LLM Client failed completely: {exc}")
         return {}
-
-
-
-     
-    
